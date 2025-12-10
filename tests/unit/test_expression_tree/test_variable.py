@@ -40,6 +40,46 @@ class TestVariable:
         assert a1 != a3
         assert a1 != a4
 
+    def test_variable_id(self):
+        # Test that changing name changes id
+        a = pybamm.Variable("a")
+        b = pybamm.Variable("b")
+        assert a.id != b.id
+
+        # Test that same properties give same id
+        a1 = pybamm.Variable("a", domain=["negative electrode"], scale=2, reference=1)
+        a2 = pybamm.Variable("a", domain=["negative electrode"], scale=2, reference=1)
+        assert a1.id == a2.id
+
+        # Test that different scale gives different id
+        a_scale1 = pybamm.Variable("a", scale=1)
+        a_scale2 = pybamm.Variable("a", scale=2)
+        assert a_scale1.id != a_scale2.id
+
+        # Test that different reference gives different id
+        a_ref0 = pybamm.Variable("a", reference=0)
+        a_ref1 = pybamm.Variable("a", reference=1)
+        assert a_ref0.id != a_ref1.id
+
+        # Test that different domain gives different id
+        a_neg = pybamm.Variable("a", domain=["negative electrode"])
+        a_pos = pybamm.Variable("a", domain=["positive electrode"])
+        assert a_neg.id != a_pos.id
+
+        # Test that different auxiliary domains give different id
+        a_sec = pybamm.Variable(
+            "a",
+            domain=["negative particle"],
+            auxiliary_domains={"secondary": ["negative electrode"]},
+        )
+        a_no_sec = pybamm.Variable("a", domain=["negative particle"])
+        assert a_sec.id != a_no_sec.id
+
+        # Test different class gives different id (Variable vs VariableDot)
+        var = pybamm.Variable("a")
+        var_dot = pybamm.VariableDot("a")
+        assert var.id != var_dot.id
+
     def test_variable_bounds(self):
         var = pybamm.Variable("var")
         assert var.bounds == (-np.inf, np.inf)
