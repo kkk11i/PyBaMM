@@ -254,6 +254,8 @@ class IDAKLUSolver(pybamm.BaseSolver):
                 "Absolute tolerances must be a numpy array or float"
             )
 
+        return atol
+
         model_y_slices = model.y_slices or {}
         for variable, y_slices in model_y_slices.items():
             scale = variable.scale.evaluate(inputs=inputs_dict)

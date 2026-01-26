@@ -57,13 +57,13 @@ class TestCasadiAlgebraicSolver:
         # Check that the algebraic root solver exists
         root_solver0 = model.algebraic_root_solver
         assert root_solver0 is not None
-        root_solver_serialized0 = root_solver0.serialize()
+        root_solver_serialized0 = root_solver0.roots.serialize()
 
         # Solve again and make sure the root solver is the same
         solver.solve(model, [0], inputs={"param": 3}, calculate_sensitivities=True)
         root_solver1 = model.algebraic_root_solver
         assert root_solver0 is root_solver1
-        root_solver_serialized1 = root_solver1.serialize()
+        root_solver_serialized1 = root_solver1.roots.serialize()
         assert root_solver_serialized0 == root_solver_serialized1
 
     def test_root_find_fail(self):

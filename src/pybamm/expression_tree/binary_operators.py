@@ -1797,3 +1797,52 @@ def tensor_product(
         A TensorProduct node representing the outer product.
     """
     return TensorProduct(simplify_if_constant(left), simplify_if_constant(right))
+
+
+def RegPower(base, exponent, scale=None, delta=None):
+    """
+    Regularized power function: y = x * (x^2 + delta^2)^((a-1)/2) * scale^a
+
+    Approximates |x|^a * sign(x) with finite derivative at x=0.
+
+    Behavior:
+    - For |x| >> delta: returns |x|^a * sign(x)
+    - For |x| << delta: returns x * delta^(a-1) (linear)
+    - Smooth transition in between
+
+    This is an anti-symmetric function: RegPower(-x, a) = -RegPower(x, a)
+
+    Parameters
+    ----------
+    base : :class:`pybamm.Symbol`
+        Base expression (x)
+    exponent : :class:`pybamm.Symbol` or float
+        Exponent expression (a)
+    scale : :class:`pybamm.Symbol` or float, optional
+        Scale factor for the input. Defaults to 1.
+    delta : float, optional
+        Regularization width. Defaults to pybamm.settings.tolerances["reg_pow"]
+
+    Returns
+    -------
+    :class:`pybamm.Symbol`
+        Regularized power expression
+    """
+    if delta is None:
+        delta = pybamm.settings.tolerances.get("reg_pow", 1e-3)
+    if scale is None:
+        scale = pybamm.Scalar(1)
+
+    # Convert to Symbols if needed
+    base = pybamm.convert_to_symbol(base)
+    exponent = pybamm.convert_to_symbol(exponent)
+    scale = pybamm.convert_to_symbol(scale)
+
+    # Build the expression tree:
+    # y = (base/scale) * ((base/scale)^2 + delta^2)^((exponent-1)/2) * scale^exponent
+    x = base / scale
+    x2_plus_delta2 = x**2 + delta**2
+    out = x * (x2_plus_delta2 ** ((exponent - 1) / 2))
+    result = out * (scale**exponent)
+
+    return pybamm.simplify_if_constant(result)

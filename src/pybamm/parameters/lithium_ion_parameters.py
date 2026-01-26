@@ -626,16 +626,11 @@ class ParticleLithiumIonParameters(BaseParameters):
         }
 
         c_e_scale = pybamm.Parameter("Initial concentration in electrolyte [mol.m-3]")
-        c_s_max_name = (
-            f"{self.phase_prefactor}Maximum {domain} particle "
-            "surface concentration [mol.m-3]"
-        )
-
         regularizer = pybamm.RegularizeSqrtAndPower(
             scales={
                 c_e: c_e_scale,
-                c_s_surf: c_s_max_name,  # Reference by input name
-                self.c_max - c_s_surf: c_s_max_name,
+                c_s_surf: self.c_max,  # Reference by input name
+                self.c_max - c_s_surf: self.c_max,
             },
             inputs=inputs,
         )

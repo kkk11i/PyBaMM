@@ -1658,40 +1658,6 @@ def smooth_absolute_value(symbol, k):
     return x * (exp(kx) - exp(-kx)) / (exp(kx) + exp(-kx))
 
 
-def reg_sqrt(x, delta=None, scale=None):
-    """
-    Regularized square root that is C1 continuous for all real x.
-
-    Behavior:
-    - For x >= delta: returns sqrt(x)
-    - For 0 <= x < delta: returns a smooth cubic polynomial that transitions
-      from 0 at x=0 to sqrt(delta) at x=delta
-    - For x < 0: returns 0
-
-    The cubic Hermite polynomial ensures C1 continuity (continuous first
-    derivative) at both x=0 and x=delta.
-
-    Parameters
-    ----------
-    x : :class:`pybamm.Symbol`
-        Input expression
-    delta : float, optional
-        Regularization width. Defaults to pybamm.settings.tolerances["reg_sqrt"]
-
-    Returns
-    -------
-    :class:`pybamm.Symbol`
-        Regularized square root, always >= 0
-
-    References
-    ----------
-    .. [1] Modelica.Fluid.Utilities.regRoot documentation
-    """
-    if delta is None:
-        delta = pybamm.settings.tolerances.get("reg_sqrt", 1e-3)
-    return reg_pow(x, 0.5, delta, scale)
-
-
 def reg_pow(x, a, delta=None, scale=None):
     """
     Modelica-style regularized power: y = |x|^a * sign(x)
@@ -1713,6 +1679,8 @@ def reg_pow(x, a, delta=None, scale=None):
         Power exponent (must be > 0)
     delta : float, optional
         Regularization width. Defaults to pybamm.settings.tolerances["reg_pow"]
+    scale : float, optional
+        Scale factor for the input. Defaults to 1.
 
     Returns
     -------
@@ -1723,18 +1691,6 @@ def reg_pow(x, a, delta=None, scale=None):
     ----------
     .. [1] Modelica.Fluid.Utilities.reg_pow
     """
-    if delta is None:
-        delta = pybamm.settings.tolerances.get("reg_pow", 1e-3)
-    if scale is None:
-        scale = 1
+    from pybamm.expression_tree.binary_operators import RegPower
 
-    x = x / scale
-
-    # Smooth approximation:
-    # y = x * (x^2 + delta^2)^((a-1)/2)
-    # For |x| >> delta: y ≈ x * |x|^(a-1) = sign(x) * |x|^a
-    # For |x| << delta: y ≈ x * delta^(a-1)
-    out = x * ((x**2 + delta**2) ** ((a - 1) / 2))
-
-    out = out * scale**a
-    return pybamm.simplify_if_constant(pybamm.convert_to_symbol(out))
+    return pybamm.simplify_if_constant(RegPower(x, a, scale=scale, delta=delta))
