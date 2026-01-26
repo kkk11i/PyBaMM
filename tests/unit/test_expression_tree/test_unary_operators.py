@@ -121,6 +121,62 @@ class TestUnaryOperators:
             "/ (exp(10.0 * y[0:1]) + exp(-10.0 * y[0:1]))"
         )
 
+    def test_reg_pow(self):
+        x = pybamm.InputParameter("x")
+        delta = pybamm.settings.tolerances.get("reg_pow", 1e-3)
+
+        # Test multiple exponents
+        for a in [0.5, 1 / 3, 0.25, 0.75]:
+            expr = pybamm.reg_pow(x, a)
+            deriv = expr.diff(x)
+
+            # Test over full range including zero and negative values
+            test_values = np.concatenate(
+                [
+                    -(10.0 ** np.linspace(3, -10, 50)),
+                    [0],
+                    10.0 ** np.linspace(-10, 3, 50),
+                ]
+            )
+
+            for x_val in test_values:
+                result = expr.evaluate(inputs={"x": x_val})
+                deriv_result = deriv.evaluate(inputs={"x": x_val})
+
+                # Must be finite for ALL inputs
+                assert np.isfinite(result), f"reg_pow({x_val}, {a}) is not finite"
+                assert np.isfinite(deriv_result), (
+                    f"d/dx reg_pow({x_val}, {a}) is not finite"
+                )
+
+                # Check anti-symmetry: reg_pow(-x, a) = -reg_pow(x, a)
+                result_neg = expr.evaluate(inputs={"x": -x_val})
+                assert result_neg == pytest.approx(-result, rel=1e-12)
+
+                # For large |x|, should approach |x|^a * sign(x)
+                if abs(x_val) > 1000 * delta:
+                    expected = np.sign(x_val) * abs(x_val) ** a
+                    assert result == pytest.approx(expected, rel=1e-5)
+
+        # Test custom delta
+        custom_delta = 0.1
+        expr_custom = pybamm.reg_pow(x, 0.5, delta=custom_delta)
+        # Still finite at zero
+        assert np.isfinite(expr_custom.evaluate(inputs={"x": 0.0}))
+        # For large x, still matches sqrt
+        assert expr_custom.evaluate(inputs={"x": 100.0}) == pytest.approx(
+            10.0, rel=1e-3
+        )
+
+        # Test scale parameter
+        scale = 10.0
+        expr_scaled = pybamm.reg_pow(x, 0.5, scale=scale)
+        # reg_pow(x, a, scale=s) = reg_pow(x/s, a) * s^a
+        # For large x: should approach sqrt(x)
+        assert expr_scaled.evaluate(inputs={"x": 100.0}) == pytest.approx(
+            10.0, rel=1e-2
+        )
+
     @given(
         random_value=st.integers(),
         random_matrix=st.lists(

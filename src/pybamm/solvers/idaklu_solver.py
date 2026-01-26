@@ -231,7 +231,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
         pybamm.citations.register("Hindmarsh2000")
         pybamm.citations.register("Hindmarsh2005")
 
-    def _check_atol_type(self, atol, size):
+    def _check_atol_type(self, atol, model, inputs_dict):
         """
         This method checks that the atol vector is of the right shape and
         type.
@@ -241,17 +241,24 @@ class IDAKLUSolver(pybamm.BaseSolver):
         atol: double or np.array or list
             Absolute tolerances. If this is a vector then each entry corresponds to
             the absolute tolerance of one entry in the state vector.
-        size: int
-            The length of the atol vector
+        model: pybamm.BaseModel
+            The model to check the atol for.
+        stacked_inputs: np.ndarray
+            The stacked inputs.
         """
 
         if isinstance(atol, float):
-            atol = atol * np.ones(size)
+            atol = np.full(model.len_rhs_and_alg, atol)
         elif not isinstance(atol, np.ndarray):
             raise pybamm.SolverError(
                 "Absolute tolerances must be a numpy array or float"
             )
 
+        model_y_slices = model.y_slices or {}
+        for variable, y_slices in model_y_slices.items():
+            scale = variable.scale.evaluate(inputs=inputs_dict)
+            for y_slice in y_slices:
+                atol[y_slice] *= scale
         return atol
 
     def set_up(self, model, inputs=None, t_eval=None, ics_only=False):
@@ -376,7 +383,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
             sensfn = model.jacp_rhs_algebraic_eval
 
         atol = getattr(model, "atol", self.atol)
-        atol = self._check_atol_type(atol, y0.size)
+        atol = self._check_atol_type(atol, model, inputs_dict)
 
         # Serialize casadi functions
         idaklu_solver_fcn = idaklu.create_casadi_solver_group
@@ -606,7 +613,7 @@ class IDAKLUSolver(pybamm.BaseSolver):
         ydot0full = np.vstack(model.ydot0full)
 
         atol = getattr(model, "atol", self.atol)
-        atol = self._check_atol_type(atol, y0full.size)
+        atol = self._check_atol_type(atol, model, inputs_list[0])
 
         timer = pybamm.Timer()
         try:

@@ -48,3 +48,20 @@ class TestSettings:
         with pytest.raises(ValueError, match=r"'soft', or 'smooth'"):
             pybamm.settings.min_max_mode = "unknown"
         pybamm.settings.set_smoothing_parameters("exact")
+
+    def test_tolerances(self):
+        """Test that tolerance settings are properly defined."""
+        tolerances = pybamm.settings.tolerances
+
+        # Test that the tolerance dict exists and has the expected keys
+        assert "j0__c_e" in tolerances
+        assert "j0__c_s" in tolerances
+        assert "macinnes__c_e" in tolerances
+
+        # Test new regularization tolerances
+        assert "reg_arcsinh2" in tolerances
+        assert "reg_pow" in tolerances
+
+        # Test that values are reasonable (positive and small)
+        assert tolerances["reg_arcsinh2"] > 0
+        assert tolerances["reg_pow"] > 0

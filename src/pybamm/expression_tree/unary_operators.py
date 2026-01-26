@@ -1656,3 +1656,85 @@ def smooth_absolute_value(symbol, k):
     exp = pybamm.exp
     kx = k * symbol
     return x * (exp(kx) - exp(-kx)) / (exp(kx) + exp(-kx))
+
+
+def reg_sqrt(x, delta=None, scale=None):
+    """
+    Regularized square root that is C1 continuous for all real x.
+
+    Behavior:
+    - For x >= delta: returns sqrt(x)
+    - For 0 <= x < delta: returns a smooth cubic polynomial that transitions
+      from 0 at x=0 to sqrt(delta) at x=delta
+    - For x < 0: returns 0
+
+    The cubic Hermite polynomial ensures C1 continuity (continuous first
+    derivative) at both x=0 and x=delta.
+
+    Parameters
+    ----------
+    x : :class:`pybamm.Symbol`
+        Input expression
+    delta : float, optional
+        Regularization width. Defaults to pybamm.settings.tolerances["reg_sqrt"]
+
+    Returns
+    -------
+    :class:`pybamm.Symbol`
+        Regularized square root, always >= 0
+
+    References
+    ----------
+    .. [1] Modelica.Fluid.Utilities.regRoot documentation
+    """
+    if delta is None:
+        delta = pybamm.settings.tolerances.get("reg_sqrt", 1e-3)
+    return reg_pow(x, 0.5, delta, scale)
+
+
+def reg_pow(x, a, delta=None, scale=None):
+    """
+    Modelica-style regularized power: y = |x|^a * sign(x)
+
+    Approximates |x|^a * sign(x) with finite derivative at x=0.
+
+    Behavior:
+    - For |x| >> delta: returns |x|^a * sign(x)
+    - For |x| << delta: returns x * delta^(a-1) (linear)
+    - Smooth transition in between
+
+    This is an anti-symmetric function: reg_pow(-x, a) = -reg_pow(x, a)
+
+    Parameters
+    ----------
+    x : :class:`pybamm.Symbol`
+        Input expression
+    a : float
+        Power exponent (must be > 0)
+    delta : float, optional
+        Regularization width. Defaults to pybamm.settings.tolerances["reg_pow"]
+
+    Returns
+    -------
+    :class:`pybamm.Symbol`
+        Regularized |x|^a * sign(x)
+
+    References
+    ----------
+    .. [1] Modelica.Fluid.Utilities.reg_pow
+    """
+    if delta is None:
+        delta = pybamm.settings.tolerances.get("reg_pow", 1e-3)
+    if scale is None:
+        scale = 1
+
+    x = x / scale
+
+    # Smooth approximation:
+    # y = x * (x^2 + delta^2)^((a-1)/2)
+    # For |x| >> delta: y ≈ x * |x|^(a-1) = sign(x) * |x|^a
+    # For |x| << delta: y ≈ x * delta^(a-1)
+    out = x * ((x**2 + delta**2) ** ((a - 1) / 2))
+
+    out = out * scale**a
+    return pybamm.simplify_if_constant(pybamm.convert_to_symbol(out))

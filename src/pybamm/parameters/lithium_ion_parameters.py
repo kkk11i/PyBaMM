@@ -1,6 +1,8 @@
 #
 # Standard parameters for lithium-ion battery models
 #
+import numpy as np
+
 import pybamm
 
 from .base_parameters import BaseParameters, NullParameters
@@ -622,14 +624,35 @@ class ParticleLithiumIonParameters(BaseParameters):
             "surface concentration [mol.m-3]": self.c_max,
             "Temperature [K]": T,
         }
+
+        c_e_scale = pybamm.Parameter("Initial concentration in electrolyte [mol.m-3]")
+        c_s_max_name = (
+            f"{self.phase_prefactor}Maximum {domain} particle "
+            "surface concentration [mol.m-3]"
+        )
+
+        regularizer = pybamm.RegularizeSqrtAndPower(
+            scales={
+                c_e: c_e_scale,
+                c_s_surf: c_s_max_name,  # Reference by input name
+                self.c_max - c_s_surf: c_s_max_name,
+            },
+            inputs=inputs,
+        )
+
         return pybamm.FunctionParameter(
             f"{self.phase_prefactor}{Domain} electrode {lithiation}"
             "exchange-current density [A.m-2]",
             inputs,
+            post_processor=regularizer,
         )
 
     def j0_stripping(self, c_e, c_Li, T):
         """Dimensional exchange-current density for stripping [A.m-2]"""
+        tol = pybamm.settings.tolerances["j0__c_e"]
+        c_e = pybamm.maximum(c_e, tol)
+        tol = pybamm.settings.tolerances["j0__c_Li"]
+        c_Li = pybamm.maximum(c_Li, tol)
         Domain = self.domain.capitalize()
         inputs = {
             f"{Domain} electrolyte concentration [mol.m-3]": c_e,
@@ -643,6 +666,10 @@ class ParticleLithiumIonParameters(BaseParameters):
 
     def j0_plating(self, c_e, c_Li, T):
         """Dimensional exchange-current density for plating [A.m-2]"""
+        tol = pybamm.settings.tolerances["j0__c_e"]
+        c_e = pybamm.maximum(c_e, tol)
+        tol = pybamm.settings.tolerances["j0__c_Li"]
+        c_Li = pybamm.maximum(c_Li, tol)
         Domain = self.domain.capitalize()
         inputs = {
             f"{Domain} electrolyte concentration [mol.m-3]": c_e,
@@ -673,23 +700,24 @@ class ParticleLithiumIonParameters(BaseParameters):
         # anyway
         Domain = self.domain.capitalize()
         tol = pybamm.settings.tolerances["U__c_s"]
-        sto = pybamm.maximum(pybamm.minimum(sto, 1 - tol), tol)
+        sto_clipped = pybamm.maximum(pybamm.minimum(sto, 1 - tol), tol)
         if lithiation is None:
             lithiation = ""
         else:
             lithiation = lithiation + " "
-        inputs = {f"{self.phase_prefactor}{Domain} particle stoichiometry": sto}
+        inputs = {f"{self.phase_prefactor}{Domain} particle stoichiometry": sto_clipped}
         u_ref = pybamm.FunctionParameter(
             f"{self.phase_prefactor}{Domain} electrode {lithiation}OCP [V]", inputs
         )
 
-        dudt_func = self.dUdT(sto)
+        dudt_func = self.dUdT(sto_clipped)
         u_ref = u_ref + (T - self.main_param.T_ref) * dudt_func
 
-        # add a term to ensure that the OCP goes to infinity at 0 and -infinity at 1
-        # this will not affect the OCP for most values of sto
-        # see #1435
-        out = u_ref + 1e-6 * (1 / sto + 1 / (sto - 1))
+        # Add a term to the OCPs to ensure they approach a large positive value
+        # as sto -> 0 and a large negative value as sto -> 1. This will not affect
+        # the OCP for most values of sto.
+        # see #1435 and #xxxxxxxxx for followup discussion.
+        out = u_ref + U_asymptotes(sto)
 
         if self.domain == "negative":
             out.print_name = r"U_\mathrm{n}(c^\mathrm{surf}_\mathrm{s,n}, T)"
@@ -784,8 +812,8 @@ class ParticleLithiumIonParameters(BaseParameters):
         domain = self.domain
         Electrode = domain.capitalize()
 
-        tol = pybamm.settings.tolerances["j0__c_e"]
-        c_e = pybamm.maximum(c_e, tol)
+        # tol = pybamm.settings.tolerances["j0__c_e"] * 0
+        # c_e = pybamm.maximum(c_e, tol)
         c_e_ref = self.main_param.c_e_init
         xj = self.x_j(U, T, index)
         # xj = pybamm.maximum(pybamm.minimum(xj, (1 - tol)), tol)
@@ -811,9 +839,9 @@ class ParticleLithiumIonParameters(BaseParameters):
         # approaches X_j
         j0_j = (
             j0_ref_j
-            * xj**wj
+            * pybamm.reg_pow(xj, wj)
             * pybamm.exp(f * (1 - aj) * (U - self.U0_j(T, index)))
-            * (c_e / c_e_ref) ** (1 - aj)
+            * pybamm.reg_pow(c_e / c_e_ref, 1 - aj)
         )
         return j0_j
 
@@ -886,3 +914,48 @@ class ParticleLithiumIonParameters(BaseParameters):
             f"{self.phase_prefactor}{Domain} electrode LAM constant proportional term{direction} [s-1]",
             inputs,
         )
+
+
+def U_asymptote_approaching_zero(sto):
+    """
+    OCP asymptote approaching zero as sto -> 0. This function's hyperparameters
+    are tuned to provide a barrier of 1 mV at sto = 0.001 and 1000 mV at sto = 0.
+
+    Parameters
+    ----------
+    sto : float
+        The stoichiometry of the electrode.
+
+    Returns
+    -------
+    float
+        The OCP asymptote.
+    """
+    a = 205.0568621937484
+    b = 6910.192179565431
+    c = -7.7e-4
+
+    return a * np.log(1 + np.exp(-b * (sto - c)))
+
+
+def U_asymptotes(sto):
+    """
+    Applies a smooth function to the OCP to ensure it approaches a large positive value
+    as sto -> 0 and a large negative value as sto -> 1. This will not affect the OCP
+    for most values of sto.
+    Note: for numerical stability, the asymptote approaches a large value instead of
+    infinity at sto = 0 or 1
+
+    Parameters
+    ----------
+    sto : float
+        The stoichiometry of the electrode.
+
+    Returns
+    -------
+    float
+        The OCP asymptote.
+    """
+    left = U_asymptote_approaching_zero(sto)
+    right = -U_asymptote_approaching_zero(1 - sto)
+    return left + right

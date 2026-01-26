@@ -18,9 +18,13 @@ class Settings:
         "chi__c_e": 1e-2,  # dimensionless
         "D__c_s": 1e-10,  # dimensionless
         "U__c_s": 1e-10,  # dimensionless
-        "j0__c_e": 1e-8,  # dimensionless
-        "j0__c_s": 1e-8,  # dimensionless
+        "j0__c_e": 0,  # dimensionless
+        "j0__c_s": 0,  # dimensionless
+        "j0__c_Li": 0,  # dimensionless
         "macinnes__c_e": 1e-15,  # dimensionless
+        # Regularization functions
+        "reg_arcsinh2": 1e-16,
+        "reg_pow": 1e-3,
     }
 
     @property
