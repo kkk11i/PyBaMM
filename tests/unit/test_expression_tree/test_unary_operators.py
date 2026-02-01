@@ -123,11 +123,11 @@ class TestUnaryOperators:
 
     def test_reg_pow(self):
         x = pybamm.InputParameter("x")
-        delta = pybamm.settings.tolerances.get("reg_pow", 1e-3)
+        delta = pybamm.settings.tolerances.get("reg_power", 1e-3)
 
         # Test multiple exponents
         for a in [0.5, 1 / 3, 0.25, 0.75]:
-            expr = pybamm.reg_pow(x, a)
+            expr = pybamm.reg_power(x, a)
             deriv = expr.diff(x)
 
             # Test over full range including zero and negative values
@@ -144,12 +144,12 @@ class TestUnaryOperators:
                 deriv_result = deriv.evaluate(inputs={"x": x_val})
 
                 # Must be finite for ALL inputs
-                assert np.isfinite(result), f"reg_pow({x_val}, {a}) is not finite"
+                assert np.isfinite(result), f"reg_power({x_val}, {a}) is not finite"
                 assert np.isfinite(deriv_result), (
-                    f"d/dx reg_pow({x_val}, {a}) is not finite"
+                    f"d/dx reg_power({x_val}, {a}) is not finite"
                 )
 
-                # Check anti-symmetry: reg_pow(-x, a) = -reg_pow(x, a)
+                # Check anti-symmetry: reg_power(-x, a) = -reg_power(x, a)
                 result_neg = expr.evaluate(inputs={"x": -x_val})
                 assert result_neg == pytest.approx(-result, rel=1e-12)
 
@@ -158,20 +158,25 @@ class TestUnaryOperators:
                     expected = np.sign(x_val) * abs(x_val) ** a
                     assert result == pytest.approx(expected, rel=1e-5)
 
-        # Test custom delta
-        custom_delta = 0.1
-        expr_custom = pybamm.reg_pow(x, 0.5, delta=custom_delta)
-        # Still finite at zero
-        assert np.isfinite(expr_custom.evaluate(inputs={"x": 0.0}))
-        # For large x, still matches sqrt
-        assert expr_custom.evaluate(inputs={"x": 100.0}) == pytest.approx(
-            10.0, rel=1e-3
-        )
+        # Test that delta comes from global settings
+        old_delta = pybamm.settings.tolerances["reg_power"]
+        try:
+            custom_delta = 0.1
+            pybamm.settings.tolerances["reg_power"] = custom_delta
+            expr_custom = pybamm.reg_power(x, 0.5)
+            # Still finite at zero
+            assert np.isfinite(expr_custom.evaluate(inputs={"x": 0.0}))
+            # For large x, still matches sqrt
+            assert expr_custom.evaluate(inputs={"x": 100.0}) == pytest.approx(
+                10.0, rel=1e-3
+            )
+        finally:
+            pybamm.settings.tolerances["reg_power"] = old_delta
 
         # Test scale parameter
         scale = 10.0
-        expr_scaled = pybamm.reg_pow(x, 0.5, scale=scale)
-        # reg_pow(x, a, scale=s) = reg_pow(x/s, a) * s^a
+        expr_scaled = pybamm.reg_power(x, 0.5, scale=scale)
+        # reg_power(x, a, scale=s) = reg_power(x/s, a) * s^a
         # For large x: should approach sqrt(x)
         assert expr_scaled.evaluate(inputs={"x": 100.0}) == pytest.approx(
             10.0, rel=1e-2

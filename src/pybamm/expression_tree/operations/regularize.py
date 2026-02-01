@@ -9,7 +9,7 @@ import pybamm
 
 class RegularizeSqrtAndPower:
     """
-    Callable that replaces Sqrt and Power nodes with reg_sqrt/reg_pow.
+    Callable that replaces Sqrt and Power nodes with reg_power.
 
     Parameters
     ----------
@@ -19,21 +19,22 @@ class RegularizeSqrtAndPower:
         - Direct scale value (pybamm.Symbol)
     inputs : dict[str, pybamm.Symbol]
         The inputs dict from FunctionParameter.
-    delta : float, optional
-        Regularization width.
+
+    Notes
+    -----
+    The regularization width `delta` is taken from
+    `pybamm.settings.tolerances["reg_power"]`.
     """
 
-    __slots__ = ["scales", "symbol_to_name", "delta"]
+    __slots__ = ["scales", "symbol_to_name"]
 
     def __init__(
         self,
         scales: dict[pybamm.Symbol, str | pybamm.Symbol],
         inputs: dict[str, pybamm.Symbol],
-        delta: float | None = None,
     ):
         self.scales = scales
         self.symbol_to_name = {symbol: name for name, symbol in inputs.items()}
-        self.delta = delta
 
     def __call__(
         self,
@@ -93,7 +94,7 @@ class RegularizeSqrtAndPower:
         return expr.create_copy(new_children=new_children)
 
     def _process(self, sym, resolved_scales):
-        """Recursively replace Sqrt/Power with reg_sqrt/reg_pow."""
+        """Recursively replace Sqrt/Power with reg_power."""
         if not sym.children:
             return sym
 
@@ -102,12 +103,12 @@ class RegularizeSqrtAndPower:
         if isinstance(sym, pybamm.Sqrt):
             child = new_children[0]
             scale = self._get_scale(child, resolved_scales)
-            return pybamm.reg_pow(child, a=0.5, delta=self.delta, scale=scale)
+            return pybamm.reg_power(child, 0.5, scale=scale)
 
         if isinstance(sym, pybamm.Power):
             base, exponent = new_children
             scale = self._get_scale(base, resolved_scales)
-            return pybamm.reg_pow(base, exponent, delta=self.delta, scale=scale)
+            return pybamm.reg_power(base, exponent, scale=scale)
 
         if any(n is not o for n, o in zip(new_children, sym.children)):
             return sym.create_copy(new_children=new_children)

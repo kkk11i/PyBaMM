@@ -41,7 +41,7 @@ class TestRegularizeSqrtAndPower:
         result = regularizer(expr, inputs=inputs)
 
         # The original c_e**0.5 Power node should be replaced
-        # (result will have different Power nodes from reg_pow formula)
+        # (result will have different Power nodes from reg_power formula)
         assert result != expr
 
     def test_scale_default_to_one(self):
@@ -108,21 +108,27 @@ class TestRegularizeSqrtAndPower:
         assert not has_sqrt
 
     def test_custom_delta(self):
-        """Test that custom delta is passed through."""
+        """Test that custom delta from global settings is used."""
         c_e = pybamm.Variable("c_e")
 
         inputs = {"c_e": c_e}
         regularizer = pybamm.RegularizeSqrtAndPower(
             {c_e: pybamm.Scalar(1000.0)},
             inputs=inputs,
-            delta=0.01,
         )
 
-        expr = pybamm.sqrt(c_e)
-        result = regularizer(expr, inputs=inputs)
+        # Set custom delta via global settings
+        old_delta = pybamm.settings.tolerances["reg_power"]
+        try:
+            pybamm.settings.tolerances["reg_power"] = 0.01
 
-        has_sqrt = any(isinstance(n, pybamm.Sqrt) for n in result.pre_order())
-        assert not has_sqrt
+            expr = pybamm.sqrt(c_e)
+            result = regularizer(expr, inputs=inputs)
+
+            has_sqrt = any(isinstance(n, pybamm.Sqrt) for n in result.pre_order())
+            assert not has_sqrt
+        finally:
+            pybamm.settings.tolerances["reg_power"] = old_delta
 
     def test_nested_expression(self):
         """Test that nested expressions are handled correctly."""

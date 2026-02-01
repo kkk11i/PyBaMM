@@ -90,6 +90,21 @@ class CasadiConverter:
                 return casadi.fmax(converted_left, converted_right)
             if isinstance(symbol, pybamm.Hypot):
                 return casadi.hypot(converted_left, converted_right)
+            if isinstance(symbol, pybamm.RegPower):
+                delta = pybamm.settings.tolerances["reg_power"]
+                scale = symbol.scale
+                # Scale should be a constant by this point
+                try:
+                    scale_val = scale.evaluate()
+                except NotImplementedError:
+                    scale_val = 1.0
+                x = converted_left / scale_val
+                x2_plus_delta2 = x**2 + delta**2
+                return (
+                    x
+                    * (x2_plus_delta2 ** ((converted_right - 1) / 2))
+                    * (scale_val**converted_right)
+                )
             if isinstance(symbol, pybamm.KroneckerProduct):
                 return casadi.kron(converted_left, converted_right)
             # Optimize repeated-row matrix multiplications: M @ x -> ones * (row @ x)

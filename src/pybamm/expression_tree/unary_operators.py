@@ -1658,7 +1658,7 @@ def smooth_absolute_value(symbol, k):
     return x * (exp(kx) - exp(-kx)) / (exp(kx) + exp(-kx))
 
 
-def reg_pow(x, a, delta=None, scale=None):
+def reg_power(x, a, scale=None):
     """
     Modelica-style regularized power: y = |x|^a * sign(x)
 
@@ -1669,7 +1669,7 @@ def reg_pow(x, a, delta=None, scale=None):
     - For |x| << delta: returns x * delta^(a-1) (linear)
     - Smooth transition in between
 
-    This is an anti-symmetric function: reg_pow(-x, a) = -reg_pow(x, a)
+    This is an anti-symmetric function: reg_power(-x, a) = -reg_power(x, a)
 
     Parameters
     ----------
@@ -1677,8 +1677,6 @@ def reg_pow(x, a, delta=None, scale=None):
         Input expression
     a : float
         Power exponent (must be > 0)
-    delta : float, optional
-        Regularization width. Defaults to pybamm.settings.tolerances["reg_pow"]
     scale : float, optional
         Scale factor for the input. Defaults to 1.
 
@@ -1687,10 +1685,15 @@ def reg_pow(x, a, delta=None, scale=None):
     :class:`pybamm.Symbol`
         Regularized |x|^a * sign(x)
 
+    Notes
+    -----
+    The regularization width `delta` is taken from
+    `pybamm.settings.tolerances["reg_power"]`.
+
     References
     ----------
-    .. [1] Modelica.Fluid.Utilities.reg_pow
+    .. [1] Modelica.Fluid.Utilities.reg_power
     """
-    from pybamm.expression_tree.binary_operators import RegPower
+    from pybamm.expression_tree.binary_operators import reg_power as _reg_pow
 
-    return pybamm.simplify_if_constant(RegPower(x, a, scale=scale, delta=delta))
+    return _reg_pow(x, a, scale=scale)

@@ -24,7 +24,7 @@ class Settings:
         "macinnes__c_e": 1e-15,  # dimensionless
         # Regularization functions
         "reg_arcsinh2": 1e-16,
-        "reg_pow": 1e-3,
+        "reg_power": 1e-3,
     }
 
     @property

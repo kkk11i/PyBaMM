@@ -60,8 +60,8 @@ class TestSettings:
 
         # Test new regularization tolerances
         assert "reg_arcsinh2" in tolerances
-        assert "reg_pow" in tolerances
+        assert "reg_power" in tolerances
 
         # Test that values are reasonable (positive and small)
         assert tolerances["reg_arcsinh2"] > 0
-        assert tolerances["reg_pow"] > 0
+        assert tolerances["reg_power"] > 0
